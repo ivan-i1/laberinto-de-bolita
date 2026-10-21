@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Laberinto de Bolita — engineer's orientation</title>
+<style>
+  :root {
+    --paper: #fbf8f1;
+    --card: #ffffff;
+    --ink: #1d1b16;
+    --muted: #57534a;
+    --line: #ddd6c6;
+    --accent: #2f4a8a;
+    --code-bg: #f3efe4;
+    --current: #1f6b3a;
+    --verify: #8a5a00;
+    --deferred: #6b6b6b;
+    --proposed: #6a3b8f;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font: 18px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 980px; margin: 0 auto; padding: 32px 20px 96px; }
+  h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; }
+  h2 { font-size: 1.5rem; margin: 56px 0 12px; padding-top: 8px; border-top: 2px solid var(--line); }
+  h3 { font-size: 1.15rem; margin: 28px 0 8px; }
+  h1, h2, h3, section, nav.index { scroll-margin-top: 64px; }
+  p, li { max-width: 72ch; }
+  a { color: var(--accent); }
+  a:focus-visible, summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.86em; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px;
+    padding: 12px 14px; white-space: pre-wrap; word-break: break-word; margin: 6px 0 16px;
+  }
+  pre code { background: none; padding: 0; }
+  .lead { font-size: 1.1rem; color: var(--muted); }
+  .boundary {
+    background: var(--card); border: 2px solid var(--ink); border-radius: 10px; padding: 16px 20px; margin: 20px 0;
+  }
+  .boundary p { margin: 4px 0; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; margin: 12px 0; }
+  .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; align-items: stretch; }
+  .grid3 .card, .grid2 .card { margin: 0; }
+  .label { font-size: 0.9rem; font-weight: 700; color: var(--muted); margin: 14px 0 0; }
+  .card .label { letter-spacing: 0.04em; text-transform: uppercase; }
+  .chip {
+    display: inline-block; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+    border: 1.5px solid currentColor; border-radius: 999px; padding: 0 8px; line-height: 1.6; white-space: nowrap; vertical-align: 2px;
+  }
+  .current { color: var(--current); }
+  .verify { color: var(--verify); }
+  .deferred { color: var(--deferred); }
+  .proposed { color: var(--proposed); }
+  table { border-collapse: collapse; width: 100%; background: var(--card); margin: 12px 0 20px; font-size: 0.92rem; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  .table-wrap { overflow-x: auto; }
+  nav.index { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 18px; margin: 24px 0; }
+  nav.index ol { margin: 6px 0; padding-left: 22px; columns: 2; column-gap: 32px; }
+  nav.index li { break-inside: avoid; margin: 3px 0; }
+  .trace { list-style: none; padding: 0; margin: 12px 0; counter-reset: step; }
+  .trace > li {
+    background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 8px;
+    padding: 10px 14px; margin: 10px 0; max-width: none;
+  }
+  .trace .head { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; }
+  .trace .num { font-weight: 800; font-family: ui-monospace, Menlo, monospace; }
+  .trace .owner { font-family: ui-monospace, Menlo, monospace; font-size: 0.86rem; color: var(--muted); }
+  .trace .action { margin: 4px 0; }
+  .note { border-left: 4px solid var(--verify); background: #fff8e8; padding: 8px 14px; border-radius: 6px; margin: 12px 0; }
+  .back { position: fixed; right: 16px; bottom: 16px; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; font-size: 0.9rem; text-decoration: none; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  footer { color: var(--muted); font-size: 0.9rem; margin-top: 48px; }
+  @media (max-width: 700px) {
+    body { font-size: 17px; }
+    nav.index ol { columns: 1; }
+    .grid2 { grid-template-columns: 1fr; }
+    /* Wide tables become one labelled card per row instead of scrolling sideways. */
+    .stack-table, .ledger-table { background: none; border: 0; }
+    .stack-table thead, .ledger-table thead { display: none; }
+    .stack-table tr, .ledger-table tr { display: block; background: var(--card); border: 1px solid var(--line); border-radius: 8px; margin: 0 0 12px; padding: 6px 12px; }
+    .stack-table td, .ledger-table td { display: block; border: 0; padding: 4px 0; }
+    .stack-table td::before, .ledger-table td::before { display: block; font-size: 0.9rem; font-weight: 700; color: var(--muted); }
+    .stack-table td:nth-child(1)::before { content: "Piece"; }
+    .stack-table td:nth-child(2)::before { content: "Where"; }
+    .stack-table td:nth-child(3)::before { content: "Maze use"; }
+    .stack-table td:nth-child(4)::before { content: "Must not become"; }
+    .stack-table td:nth-child(5)::before { content: "Status"; }
+    .ledger-table td:nth-child(1) { font-weight: 700; }
+    .ledger-table td:nth-child(2)::before { content: "Android (emulator)"; }
+    .ledger-table td:nth-child(3)::before { content: "iOS (simulator)"; }
+    .ledger-table td:nth-child(4)::before { content: "Web (Chrome)"; }
+    .ledger-table td.all::before { content: "All platforms"; }
+    .back { display: none; }
+    h1 { font-size: 1.6rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>Laberinto de Bolita — engineer's orientation</h1>
+  <p class="lead">A five-to-ten-minute map of <code>ivan-i1/laberinto-de-bolita</code> at <code>821c011</code>, the head of draft PR #1 (<code>bootstrap-from-baseapp</code>, not merged; <code>main</code> holds only the licence and a stub README). Its job is to show what exists, what the maze still needs, and which decisions are open. The code, <a href="../README.md">README.md</a>, <a href="../CLAUDE.md">CLAUDE.md</a> and <a href="../docs/base-app.md">docs/base-app.md</a> remain the authority. This page is <strong>not</strong> evidence that anything is built, published or deployed.</p>
+  <p>Status labels: <span class="chip current">Current</span> in the code and observed working; <span class="chip verify">Verify</span> in the code but not observed on the platform named, or observed to misbehave; <span class="chip proposed">Proposed</span> designed in the dump, no code; <span class="chip deferred">Deferred</span> deliberately not included yet.</p>
+  <div class="note"><strong>No gameplay exists yet.</strong> Every maze component on this page is <span class="chip proposed">Proposed</span>. What runs today is the Base App template with this app's identity.</div>
+</header>
+
+<nav class="index" id="index" aria-label="Page index">
+  <strong>Index</strong>
+  <ol>
+    <li><a href="#boundary">What it does and does not do</a> <span class="chip current">Current</span> · <span class="chip proposed">Proposed</span></li>
+    <li><a href="#stack">Pieces: inherited, to replace, to build</a> <span class="chip current">Current</span> · <span class="chip proposed">Proposed</span></li>
+    <li><a href="#walkthrough">Walkthrough: one frame, one grip, one wall</a> <span class="chip current">Current</span> A · <span class="chip verify">Verify</span> B · <span class="chip proposed">Proposed</span> C</li>
+    <li><a href="#decisions">Decisions: settled and open</a> <span class="chip proposed">Proposed</span></li>
+    <li><a href="#data">Data anatomy: what is public, what stays private</a> <span class="chip current">Current</span></li>
+    <li><a href="#ops">Developer lifecycle and drift from Base App</a> <span class="chip current">Current</span> · <span class="chip deferred">Deferred</span></li>
+    <li><a href="#ledger">Verification ledger</a> <span class="chip verify">Verify</span></li>
+    <li><a href="#docs">Further detail: which file to open</a></li>
+  </ol>
+</nav>
+
+<!-- 1 -->
+<section id="boundary">
+<h2>1. What it does and does not do <span class="chip current">Current</span> · <span class="chip proposed">Proposed</span></h2>
+<div class="boundary">
+  <p><strong>Phone tilt → Laberinto de Bolita → a ball rolling through a maze, reset when it falls.</strong> <span class="chip proposed">Proposed</span></p>
+  <p><strong>Today: an Expo app (Android, iOS, web) that launches, shows the Base App demos and reads the tilt sensor.</strong> <span class="chip current">Current</span></p>
+  <p>It does <strong>not</strong> rotate the board in a physics engine, host anything, or reuse the private <code>hyper-casual-game</code> code or history.</p>
+</div>
+<div class="grid2">
+  <div class="card"><p class="label">Does</p><p>First deliverable, per the dump: navigating the plane. The tilt steers the ball; the ball stays centred and the maze moves (if the camera question settles that way; see <a href="#decisions">§4</a>).</p></div>
+  <div class="card"><p class="label">Does not</p><p>Simulate a rotating 3D board. Tilt redirects gravity on a fixed plane; any visible board tilt is cosmetic. It has no backend, accounts, ads or leaderboards.</p></div>
+  <div class="card"><p class="label">Public handoff</p><p>The JS bundle and assets, which will include every maze level. The repo itself is <strong>public</strong>.</p></div>
+  <div class="card"><p class="label">Private machinery</p><p>This app's own upload keystore in <code>credentials/</code> (gitignored, not created yet) and <code>.env.local</code>. Settings stay on the device.</p></div>
+</div>
+</section>
+
+<!-- 2 -->
+<section id="stack">
+<h2>2. Pieces: inherited, to replace, to build <span class="chip current">Current</span> · <span class="chip proposed">Proposed</span></h2>
+<p>Every Base App module came over unchanged at <code>81ddd19</code>. The maze needs a few of them, replaces one, and needs several that do not exist.</p>
+<div class="table-wrap">
+<table class="stack-table">
+  <thead><tr><th>Piece</th><th>Where</th><th>Maze use</th><th>Must not become</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td>Tilt input</td><td><a href="../src/engines/sensors/"><code>engines/sensors</code></a></td><td>The steering signal: smoothed, calibrated, dead-zoned downhill vector</td><td>React state (it updates every 16 ms)</td><td><span class="chip verify">Verify</span> dead zone (B), iOS signs</td></tr>
+    <tr><td>Frame loop</td><td><a href="../src/engines/game-loop/"><code>engines/game-loop</code></a></td><td>RNGE loop and <code>frameScale</code>, so speed is the same at 60 and 120 Hz</td><td>A physics engine</td><td><span class="chip current">Current</span></td></tr>
+    <tr><td>Ball step</td><td><a href="../src/engines/game-loop/bounce.ts"><code>bounce.ts</code></a> <code>stepBall</code></td><td>Integration and friction carry over; the collision part clamps against <strong>screen edges only</strong></td><td>The maze collider (it has no interior walls)</td><td><span class="chip current">Current</span> · to replace</td></tr>
+    <tr><td>Bump feedback</td><td><a href="../src/engines/audio/"><code>engines/audio</code></a>, <a href="../src/engines/haptics/haptics.ts"><code>haptics</code></a></td><td>Sound and buzz on a wall hit, scaled by impact (dump question 9)</td><td>Music playback</td><td><span class="chip verify">Verify</span> on a phone</td></tr>
+    <tr><td>Menus, settings, i18n, theme</td><td><a href="../src/menu/"><code>menu</code></a>, <a href="../src/core/"><code>core</code></a></td><td>Pause, options, six languages, persisted settings</td><td>Screen navigation (Expo Router's job)</td><td><span class="chip current">Current</span></td></tr>
+    <tr><td>Phaser, API/LLM client, demos</td><td><a href="../src/engines/phaser/"><code>engines/phaser</code></a>, <a href="../src/engines/api/"><code>engines/api</code></a>, <a href="../src/app/demos/"><code>app/demos</code></a></td><td>No maze use named in the dump. Delete when the engine choice is made</td><td>Accidental dependencies of the maze</td><td><span class="chip current">Current</span> inherited</td></tr>
+    <tr><td>World coordinates + camera</td><td>none</td><td>Ball position in maze units; a translate keeps the ball centred</td><td>Screen pixels (today position <em>is</em> a pixel)</td><td><span class="chip proposed">Proposed</span></td></tr>
+    <tr><td>Circle-vs-tile collision + sub-stepping</td><td>none</td><td>Interior walls that the ball cannot pass through (C)</td><td>A general physics engine dependency</td><td><span class="chip proposed">Proposed</span></td></tr>
+    <tr><td>Level format, holes, goal, reset</td><td>none</td><td>A grid of chars or JSON, start point, holes, goal</td><td>Something only code can edit</td><td><span class="chip proposed">Proposed</span> undefined (Q2, Q3)</td></tr>
+    <tr><td>Visual board tilt</td><td>none</td><td>A few degrees of <code>rotateX</code>/<code>rotateY</code> as feedback</td><td>Input to the physics</td><td><span class="chip proposed">Proposed</span> (Q7)</td></tr>
+  </tbody>
+</table>
+</div>
+</section>
+
+<!-- 3 -->
+<section id="walkthrough">
+<h2>3. Walkthrough: one frame, one grip, one wall <span class="chip current">Current</span> A · <span class="chip verify">Verify</span> B · <span class="chip proposed">Proposed</span> C</h2>
+<p>Three scenarios, each a different path. Numbers in A and B were produced by running this repo's own functions (<code>stepBall</code>, <code>lowPass</code>, <code>applyDeadzone</code>, <code>deviceToScreen</code>) on the inputs shown; the inputs are <strong>illustrative</strong>. C has no code to run, so it uses the real ball step against a wall that does not exist yet.</p>
+
+<h3 id="scenario-a">A. One frame today: tilt rolls the ball into a screen edge <span class="chip current">Current</span></h3>
+<p>Setup: <code>/demos/game-loop</code>, 120 Hz phone, ball radius 22 (<code>game-loop.tsx:50</code>), 23 px from the left edge moving left at 3 px/frame.</p>
+<p class="label">Every block in this trace is a semantic display excerpt: return values of the real functions, not a stored or wire shape.</p>
+<ol class="trace">
+  <li><div class="head"><span class="num">A1</span><span class="owner">expo-sensors → tiltSensor.ts:onSample</span></div>
+    <p class="action">A sample arrives every 16 ms. <code>deviceToScreen</code> negates X only (<code>tilt.ts:38</code>), then the calibration offset is subtracted and the result smoothed and dead-zoned into <code>tilt.gravity</code>.</p>
+    <pre><code>sample {x: 0.2, y: 0.1} g
+→ screen {x: -0.2, y: 0.1}
+→ tilt.gravity {x: -0.0432, y: 0.0216}</code></pre></li>
+  <li><div class="head"><span class="num">A2</span><span class="owner">game-loop.tsx:62 → bounce.ts stepBall</span></div>
+    <p class="action">Gravity is scaled by <code>TILT_ACCEL</code> 1.3 and <code>dtf</code> 0.5 (8.33 ms frame), integrated with friction 0.995, then the edge clamp reflects the ball at 70%.</p>
+    <pre><code>ball in  {x: 23, vx: -3}
+ball out {x: 22, vx: 2.1143}
+impact   3.0205</code></pre></li>
+  <li><div class="head"><span class="num">A3</span><span class="owner">SoundBank.ts, haptics.ts</span></div>
+    <p class="action">Impact over 1.5 plays a bounce sound and a light buzz unless the settings turn them off. This is the hook for "haptics on hitting a wall" (dump question 9).</p></li>
+  <li><div class="head"><span class="num">A4</span><span class="owner">— maze branches here —</span> <span class="chip proposed">Proposed</span></div>
+    <p class="action">In the maze, A2's edge clamp is replaced by collision against tiles in world coordinates, and the renderer draws the maze offset by <code>screen centre − ball</code> so the ball stays centred. Neither exists.</p></li>
+</ol>
+
+<h3 id="scenario-b">B. Ambiguous input: how the player holds the phone <span class="chip verify">Verify</span></h3>
+<p>Nobody plays a maze with the phone flat. The same tilt sample means "steer" or "this is how I hold it" depending on calibration, and the dead zone decides when small tilts count.</p>
+<ol class="trace">
+  <li><div class="head"><span class="num">B1</span><span class="owner">tiltSensor.ts:42–43</span></div>
+    <p class="action">Phone held 30° toward the player, otherwise level: the sample reads <code>y = sin 30° = 0.5</code>. Without calibration that is a strong downhill pull; <code>calibrateTilt()</code> (<code>tiltSensor.ts:70</code>) stores the current reading as the offset, so the same grip becomes level.</p>
+    <p class="label">Semantic display excerpt — <code>tilt.gravity.y</code> after 1, 3 and 10 samples</p>
+    <table>
+  <thead><tr><th>Samples</th><th>No calibration</th><th>After <code>calibrateTilt()</code></th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>0.1450</td><td>0</td></tr>
+    <tr><td>3</td><td>0.3005</td><td>0</td></tr>
+    <tr><td>10</td><td>0.4087</td><td>0</td></tr>
+    <tr><td>Result</td><td>0.53 px/frame² downhill</td><td>ball rests</td></tr>
+  </tbody>
+</table>
+    <p>Only the media demo has a Calibrate button (<code>media.tsx:91</code>). The game-loop demo never calibrates, so in the maze a calibration step is still to design.</p></li>
+  <li><div class="head"><span class="num">B2</span><span class="owner">tiltSensor.ts:43</span> <span class="chip verify">Verify</span> defect</div>
+    <p class="action">The intended dead zone is 0.03 g (about 1.7°), rescaled so input starts from zero at its edge. But line 43 stores the <em>dead-zoned</em> value back into <code>tilt.gravity</code>, which is also the smoother's previous value. Starting from rest, one sample moves only 35% of the way, so anything under 0.03 / 0.35 ≈ 0.086 g is zeroed every sample and never accumulates.</p>
+    <p class="label">Semantic display excerpt — steady <code>tilt.gravity.y</code> for a held tilt past level, replaying line 43</p>
+    <table>
+  <thead><tr><th>Held tilt</th><th>Sample (g)</th><th>Output (g)</th></tr></thead>
+  <tbody>
+    <tr><td>2°</td><td>0.0349</td><td>0</td></tr>
+    <tr><td>4°</td><td>0.0698</td><td>0</td></tr>
+    <tr><td>4.9°</td><td>0.0854</td><td>0</td></tr>
+    <tr><td>6°</td><td>0.1045</td><td>0.0188</td></tr>
+    <tr><td>8°</td><td>0.1392</td><td>0.0535</td></tr>
+    <tr><td>10°</td><td>0.1736</td><td>0.0879</td></tr>
+    <tr><td>20°</td><td>0.3420</td><td>0.2563</td></tr>
+  </tbody>
+</table>
+    <p>So the ball ignores tilts under about 4.9°, and at 10° gets 0.0879 g instead of the intended 0.1436 g (about 60%). For a maze, where fine control matters, this is the first thing to fix: smooth first, store the smoothed value, and apply the dead zone only on output. The same code is in Base App (<code>src/engines/sensors/tiltSensor.ts:43</code>); <code>__tests__/tilt.test.ts</code> tests the two functions separately, not their feedback.</p></li>
+</ol>
+
+<h3 id="scenario-c">C. Boundary case: a fast ball meets an interior wall <span class="chip proposed">Proposed</span></h3>
+<p>No wall code exists. This is the failure the collider has to be designed against, from the dump's analysis (V1 §3.4) redone with this repo's numbers.</p>
+<ol class="trace">
+  <li><div class="head"><span class="num">C1</span><span class="owner">bounce.ts stepBall</span> <span class="chip current">Current</span></div>
+    <p class="action">The template has no speed cap: speed rises until friction balances the pull. Running the real <code>stepBall</code> in an open corridor:</p>
+    <p class="label">Semantic display excerpt — distance moved per frame once speed settles</p>
+    <table>
+  <thead><tr><th>Held tilt (output)</th><th>60 Hz</th><th>120 Hz</th></tr></thead>
+  <tbody>
+    <tr><td>10° (0.0879 g)</td><td>22.7 px</td><td>11.4 px</td></tr>
+    <tr><td>20° (0.2563 g)</td><td>32.1 px</td><td>32.0 px</td></tr>
+  </tbody>
+</table></li>
+  <li><div class="head"><span class="num">C2</span><span class="owner">maze collider</span> <span class="chip proposed">Proposed</span></div>
+    <p class="action">With nearest-point push-out, a step that carries the ball's centre past a wall's midline pushes it out the <em>far</em> side. That happens when one step exceeds <code>radius + wall/2</code>. For radius 22 and an illustrative 20 px wall, that is 32 px, which a 20° run reaches after about 2 s at 60 Hz.</p>
+    <p>Threshold 22 + 20/2 = 32 px; settled step at 20° ≈ 32 px. That is marginal, and a steeper tilt passes through.</p>
+    <p>So the collider needs sub-steps no larger than <code>min(radius, wall/2)</code> per frame, or a speed cap below the threshold. The dump flags this as the natural first red→green test. Wall thickness and ball size are open (Q5).</p></li>
+</ol>
+</section>
+
+<!-- 4 -->
+<section id="decisions">
+<h2>4. Decisions: settled and open <span class="chip proposed">Proposed</span></h2>
+<p>The design lives in two dump files, <code>ADV-REV-laberinto-V0.md</code> (the idea) and <code>ADV-REV-laberinto-V1.md</code> (a fact-check of it, 2026-09-28). <strong>Neither is committed</strong>: they sit untracked in the root of the primary checkout, so they are named here, not linked.</p>
+<h3>Settled</h3>
+<ul>
+  <li><span class="chip current">Current</span> <strong>Gravity redirect on a fixed plane, not a rotating board.</strong> No 3D physics engine is usable on React Native 0.81 (V1 C2), and the template already steers this way (A2).</li>
+  <li><span class="chip current">Current</span> <strong>Start clean from the public Base App, no private history.</strong> V1 warned that the public repo must not inherit the private <code>hyper-casual-game</code> history (U2) and that the Gradle <code>.gitignore</code> was wrong (U1). PR #1 does both: copied from Base App, Expo <code>.gitignore</code>. Repo visibility (public) was not explicitly re-confirmed.</li>
+</ul>
+<h3>Open — each is Ivan's call (V1 §8)</h3>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>#</th><th>Question</th><th>What it changes</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ball centred with the maze scrolling, or the whole board on screen?</td><td>Whether a camera system exists at all; maze size</td></tr>
+    <tr><td>2</td><td>"Falls": holes, open edges or both? Reset to start or checkpoint?</td><td>Level format and the fall state</td></tr>
+    <tr><td>3</td><td>What counts as done for deliverable 1?</td><td>Whether holes and a goal are in the first cut</td></tr>
+    <tr><td>4</td><td>Confirm the clean start and public visibility</td><td>Largely answered by PR #1; visibility unconfirmed</td></tr>
+    <tr><td>5</td><td>Ball size versus corridor width</td><td>Tunnelling threshold (C2)</td></tr>
+    <tr><td>6</td><td>Platforms for deliverable 1</td><td>iOS axis signs are unverified; tilt is off on web</td></tr>
+    <tr><td>7</td><td>Visual board tilt, and how many degrees?</td><td>Cosmetic only; Android has open perspective bugs</td></tr>
+    <tr><td>8</td><td>Estimate in hours for deliverable 1</td><td>Task tracking</td></tr>
+    <tr><td>9</td><td>Which toy extras carry over (impact sound, wall haptics, shake to unstick)?</td><td>Whether audio and haptics stay</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="note">V1 was written against <code>hyper-casual-game</code>, before Base App existed. Its line citations point there, not here. Its tilt concerns (raw unfiltered input, no calibration) are partly answered by Base App's sensor module, which smooths and calibrates, but scenario B shows the dead zone is stricter than intended.</p>
+</section>
+
+<!-- 5 -->
+<section id="data">
+<h2>5. Data anatomy: what is public, what stays private <span class="chip current">Current</span></h2>
+<div class="grid3">
+  <div class="card"><p class="label">In the bundle — public</p><ul>
+    <li>All JS, translations, sounds, images</li>
+    <li>Maze levels, once they exist <span class="chip proposed">Proposed</span></li>
+    <li>Any <code>EXPO_PUBLIC_*</code> value</li></ul></div>
+  <div class="card"><p class="label">On the device</p><ul>
+    <li><code>@laberinto-de-bolita:settings</code> — language, theme, sound, vibration, volume</li>
+    <li>Progress or best times, if added <span class="chip proposed">Proposed</span></li></ul></div>
+  <div class="card"><p class="label">Never in the repo or bundle</p><ul>
+    <li><code>credentials/</code> — this app's <strong>own</strong> upload keystore; do not reuse Bounce Fidget's</li>
+    <li><code>.env.local</code></li></ul></div>
+</div>
+<p>No wire or file contract exists for the maze yet. The level format is <span class="chip proposed">Proposed</span> (Q2, Q3), so this page shows no level example rather than inventing one.</p>
+</section>
+
+<!-- 6 -->
+<section id="ops">
+<h2>6. Developer lifecycle and drift from Base App <span class="chip current">Current</span> · <span class="chip deferred">Deferred</span></h2>
+<pre><code>npm install
+npm run android    # dev build; tilt needs a real phone
+npm run ios
+npm run web        # no tilt: the demo ball falls with plain gravity
+npm run check      # typecheck + 50 tests (10 suites) + lint</code></pre>
+<ul>
+  <li><span class="chip current">Current</span> <strong>Identity:</strong> <code>io.github.ivan_i1.laberinto_de_bolita</code> (Android), <code>io.github.ivan-i1.laberinto-de-bolita</code> (iOS), scheme <code>laberintodebolita</code>, 0.1.0 (versionCode 1), portrait.</li>
+  <li><span class="chip current">Current</span> <strong>Jest fix</strong> from Base App <code>41da887</code> is already in the bootstrap commit.</li>
+  <li><span class="chip deferred">Deferred</span> <strong>Base App <code>4aa38bf</code> not pulled:</strong> Phaser touch buttons and the optional Capacitor shell. A tilt maze built on the game loop needs neither.</li>
+  <li><span class="chip verify">Verify</span> <strong>Release signing:</strong> no keystore exists for this app yet.</li>
+</ul>
+</section>
+
+<!-- 7 -->
+<section id="ledger">
+<h2>7. Verification ledger <span class="chip verify">Verify</span></h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Check</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td><code>npm run check</code> at <code>821c011</code></td><td><span class="chip current">Current</span> 50/50 tests, typecheck and lint (2026-10-20; tests re-run 2026-10-21)</td></tr>
+    <tr><td><code>expo export</code> web, Android, iOS bundles; <code>expo prebuild</code> writes the new ids</td><td><span class="chip current">Current</span> (2026-10-20, per PR #1)</td></tr>
+    <tr><td>Web build renders</td><td><span class="chip current">Current</span> headless Chrome</td></tr>
+    <tr><td>Native build on a device or simulator</td><td><span class="chip verify">Verify</span> not run for this identity; the same code ran on Base App</td></tr>
+    <tr><td>Real tilt, haptics, sound</td><td><span class="chip verify">Verify</span> needs a physical phone</td></tr>
+    <tr><td>Effective tilt dead zone (B2)</td><td><span class="chip verify">Verify</span> replayed in Node against the real functions; not yet felt on a device</td></tr>
+  </tbody>
+</table>
+</div>
+</section>
+
+<!-- 8 -->
+<section id="docs">
+<h2>8. Further detail: which file to open</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Open</th><th>When you need</th></tr></thead>
+  <tbody>
+    <tr><td><a href="../README.md">README.md</a></td><td>Run commands, identity, starting points for the maze</td></tr>
+    <tr><td><a href="../CLAUDE.md">CLAUDE.md</a></td><td>Architecture rules that are easy to break</td></tr>
+    <tr><td><a href="../docs/base-app.md">docs/base-app.md</a></td><td>Every inherited module, icons, bundling, signing, debugging</td></tr>
+    <tr><td><a href="../src/engines/sensors/tiltSensor.ts">engines/sensors/tiltSensor.ts</a> · <a href="../src/engines/sensors/tilt.ts">tilt.ts</a></td><td>Tilt pipeline, calibration, the dead-zone line (B2)</td></tr>
+    <tr><td><a href="../src/engines/game-loop/bounce.ts">engines/game-loop/bounce.ts</a></td><td>The ball step the maze collider replaces</td></tr>
+    <tr><td><a href="../src/app/demos/game-loop.tsx">app/demos/game-loop.tsx</a></td><td>How a system wires tilt, physics and feedback together</td></tr>
+    <tr><td><a href="../__tests__/">__tests__/</a></td><td>Where the collider's first red→green test belongs</td></tr>
+    <tr><td><a href="../app.json">app.json</a></td><td>Identity, orientation, plugins</td></tr>
+  </tbody>
+</table>
+</div>
+</section>
+
+<footer>
+  <p>Generated 2026-10-21 against <code>821c011</code>. If the code and this page disagree, the code is right and this page is stale.</p>
+</footer>
+<a class="back" href="#index">↑ Index</a>
+
+</main>
+</body>
+</html>
